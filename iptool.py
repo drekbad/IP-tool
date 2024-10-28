@@ -36,22 +36,50 @@ def display_range_info(network):
     print(f"Total IPs: {network.num_addresses}")
     print(f"Usable IPs: {usable_count}")
 
-def parse_snm_or_cidr(value):
-    # Determines if input is CIDR, SNM in last-octet, or full SNM format, returns IP network
+def parse_snm_or_cidr(ip, netmask=None):
     try:
         # Try parsing as CIDR
-        return ipaddress.ip_network(value, strict=False)
-    except ValueError:
-        # Check if it's in subnet mask format (either full or final octet form)
-        snm_match = re.fullmatch(r"255(\.\d+){3}|(\d{1,3})$", value.strip('.'))
+        if not netmask:
+            return ipaddress.ip_network(ip, strict=False)
+        
+        # Parse SNM formats, whether full or abbreviated (e.g., 240, .240)
+        snm_match = re.fullmatch(r"255(\.\d+){3}|(\d{1,3})$", netmask.strip('.'))
         if snm_match:
-            # Handle SNM formats
             snm = snm_match.group()
             if len(snm.split('.')) == 1:
-                # Last octet form (e.g., 248 or .248)
+                # Convert abbreviated SNM (e.g., 240) to full SNM
                 snm = f"255.255.255.{snm}"
-            return ipaddress.IPv4Network(f"0.0.0.0/{ipaddress.IPv4Address(snm).max_prefixlen}", strict=False)
-    raise ValueError("Invalid format for CIDR or SNM")
+            return ipaddress.IPv4Network(f"{ip}/{ipaddress.IPv4Address(snm).max_prefixlen}", strict=False)
+    except ValueError:
+        raise ValueError("Invalid format for CIDR or SNM")
+
+def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway):
+    results = {"public": 0, "private": 0}
+    total_records = 0
+    summaries = defaultdict(int)
+
+    with open(file_path, 'r') as file:
+        for line in file:
+            line = line.strip()
+            try:
+                # Parse the line as either CIDR or SNM
+                parts = line.split()
+                network = parse_snm_or_cidr(parts[0], parts[1] if len(parts) > 1 else None)
+                usable_count = calculate_usable_ips(network, disclude_net, disclude_broadcast, disclude_gateway)
+                
+                is_private_ip = is_private(network.network_address)
+                if is_private_ip:
+                    summaries["private_count"] += usable_count
+                    results["private"] += usable_count
+                else:
+                    summaries["public_count"] += usable_count
+                    results["public"] += usable_count
+
+                total_records += 1
+            except ValueError as e:
+                print(f"Invalid format in file line '{line}': {e}")
+
+    return results, summaries, total_records
 
 def main():
     parser = argparse.ArgumentParser(description="Count usable IPs from a file with IP/CIDR or SNM notation.")
@@ -62,7 +90,7 @@ def main():
         type=str,
         default=""
     )
-    parser.add_argument("-calc", "--calculate", nargs='?', help="Calculate IP range details for a given IP/CIDR or SNM")
+    parser.add_argument("-calc", "--calculate", nargs='+', help="Calculate IP range details for a given IP/CIDR or SNM")
     parser.add_argument("-all", "--all_counts", action="store_true", help="Display all IP counts with different inclusion configurations.")
     args = parser.parse_args()
 
@@ -72,25 +100,23 @@ def main():
     disclude_gateway = 'GW' in args.disclude.upper()
 
     if args.calculate:
-        # If `-calc` is provided without value, assume `-i` file content should be used
-        if not args.calculate and args.input:
-            with open(args.input, 'r') as file:
-                for line in file:
-                    line = line.strip()
-                    try:
-                        network = parse_snm_or_cidr(line)
-                        display_range_info(network)
-                        print()  # Newline for readability
-                    except ValueError as e:
-                        print(f"Invalid format in file line '{line}': {e}")
-        else:
-            # Handle single `-calc` value (CIDR or SNM format)
+        # Handle `-calc` with IP/CIDR or IP SNM
+        if len(args.calculate) == 1:
+            # Single argument for CIDR format
             try:
-                network = parse_snm_or_cidr(args.calculate)
+                network = parse_snm_or_cidr(args.calculate[0])
                 display_range_info(network)
             except ValueError as e:
                 print(f"Invalid format for -calc: {e}")
-
+        elif len(args.calculate) == 2:
+            # Two arguments: IP and SNM
+            try:
+                network = parse_snm_or_cidr(args.calculate[0], args.calculate[1])
+                display_range_info(network)
+            except ValueError as e:
+                print(f"Invalid format for -calc with SNM: {e}")
+        else:
+            print("Error: -calc expects an IP with optional CIDR or SNM format.")
     elif args.input:
         # Parse file and get results
         results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway)
