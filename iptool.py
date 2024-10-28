@@ -7,68 +7,19 @@ from collections import defaultdict
 def is_private(ip):
     return ip.is_private
 
-def calculate_usable_ips(network, disclude_net, disclude_broadcast, disclude_gateway):
+def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, disclude_gateway=False):
     hosts = list(network.hosts())
     total_hosts = len(hosts)
 
-    # Adjust counts based on disclusion
-    if disclude_net:
-        total_hosts -= 1
-    if disclude_broadcast:
-        total_hosts -= 1
-    if disclude_gateway and len(hosts) > 1:
-        total_hosts -= 1  # Consider the "gateway" IP if discluded
+    # Ensure inclusions by default
+    if not disclude_net:
+        total_hosts += 1  # Count the network IP
+    if not disclude_broadcast:
+        total_hosts += 1  # Count the broadcast IP
+    if not disclude_gateway and len(hosts) > 1:
+        total_hosts += 1  # Add a "gateway" IP if multiple hosts exist
 
     return total_hosts
-
-def parse_line(line, disclude_net, disclude_broadcast, disclude_gateway):
-    line = line.strip()
-    match = re.match(r"(\d{1,3}(?:\.\d{1,3}){3})(?:/(\d{1,2}))?", line)
-    snm_match = re.search(r"(255\.\d+\.\d+\.\d+)", line)
-
-    if match:
-        ip_str, cidr = match.groups()
-        try:
-            if cidr:
-                network = ipaddress.ip_network(f"{ip_str}/{cidr}", strict=False)
-            elif snm_match:
-                snm = snm_match.group()
-                network = ipaddress.IPv4Network(f"{ip_str}/{ipaddress.IPv4Address(snm).max_prefixlen}", strict=False)
-            else:
-                return None
-
-            usable_count = calculate_usable_ips(network, disclude_net, disclude_broadcast, disclude_gateway)
-            is_private_ip = is_private(network.network_address)
-
-            return {
-                "network": str(network),
-                "usable_ips": usable_count,
-                "private": is_private_ip,
-                "total_ips": network.num_addresses,
-            }
-        except ValueError as e:
-            print(f"Invalid IP/CIDR: {line} - {e}")
-            return None
-    return None
-
-def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway):
-    results = {"public": 0, "private": 0}
-    total_records = 0
-    summaries = defaultdict(int)
-
-    with open(file_path, 'r') as file:
-        for line in file:
-            result = parse_line(line, disclude_net, disclude_broadcast, disclude_gateway)
-            if result:
-                total_records += 1
-                if result["private"]:
-                    summaries["private_count"] += result["usable_ips"]
-                    results["private"] += result["usable_ips"]
-                else:
-                    summaries["public_count"] += result["usable_ips"]
-                    results["public"] += result["usable_ips"]
-
-    return results, summaries, total_records
 
 def display_range_info(network):
     # Display range details for a single CIDR/SNM input
@@ -85,6 +36,23 @@ def display_range_info(network):
     print(f"Total IPs: {network.num_addresses}")
     print(f"Usable IPs: {usable_count}")
 
+def parse_snm_or_cidr(value):
+    # Determines if input is CIDR, SNM in last-octet, or full SNM format, returns IP network
+    try:
+        # Try parsing as CIDR
+        return ipaddress.ip_network(value, strict=False)
+    except ValueError:
+        # Check if it's in subnet mask format (either full or final octet form)
+        snm_match = re.fullmatch(r"255(\.\d+){3}|(\d{1,3})$", value.strip('.'))
+        if snm_match:
+            # Handle SNM formats
+            snm = snm_match.group()
+            if len(snm.split('.')) == 1:
+                # Last octet form (e.g., 248 or .248)
+                snm = f"255.255.255.{snm}"
+            return ipaddress.IPv4Network(f"0.0.0.0/{ipaddress.IPv4Address(snm).max_prefixlen}", strict=False)
+    raise ValueError("Invalid format for CIDR or SNM")
+
 def main():
     parser = argparse.ArgumentParser(description="Count usable IPs from a file with IP/CIDR or SNM notation.")
     parser.add_argument("-i", "--input", help="Input file path.")
@@ -94,7 +62,7 @@ def main():
         type=str,
         default=""
     )
-    parser.add_argument("-calc", "--calculate", help="Calculate IP range details for a given IP/CIDR or SNM")
+    parser.add_argument("-calc", "--calculate", nargs='?', help="Calculate IP range details for a given IP/CIDR or SNM")
     parser.add_argument("-all", "--all_counts", action="store_true", help="Display all IP counts with different inclusion configurations.")
     args = parser.parse_args()
 
@@ -104,30 +72,24 @@ def main():
     disclude_gateway = 'GW' in args.disclude.upper()
 
     if args.calculate:
-        # Handle single range calculation
-        calc_input = args.calculate.strip()
-        calc_match = re.match(r"(\d{1,3}(?:\.\d{1,3}){3})(?:/(\d{1,2})|\s*(255(?:\.\d+){3}|255\.\d+))?", calc_input)
-
-        if calc_match:
-            ip_str, cidr, snm = calc_match.groups()
-            try:
-                if cidr:
-                    network = ipaddress.ip_network(f"{ip_str}/{cidr}", strict=False)
-                elif snm:
-                    network = ipaddress.IPv4Network(f"{ip_str}/{ipaddress.IPv4Address(snm).max_prefixlen}", strict=False)
-                else:
-                    print("Error: Provide a valid CIDR or SNM format.")
-                    return
-
-                # Display range information
-                display_range_info(network)
-
-            except ValueError as e:
-                print(f"Invalid range provided for calculation: {e}")
-                return
+        # If `-calc` is provided without value, assume `-i` file content should be used
+        if not args.calculate and args.input:
+            with open(args.input, 'r') as file:
+                for line in file:
+                    line = line.strip()
+                    try:
+                        network = parse_snm_or_cidr(line)
+                        display_range_info(network)
+                        print()  # Newline for readability
+                    except ValueError as e:
+                        print(f"Invalid format in file line '{line}': {e}")
         else:
-            print("Error: Provide a valid IP/CIDR or SNM format for calculation.")
-            return
+            # Handle single `-calc` value (CIDR or SNM format)
+            try:
+                network = parse_snm_or_cidr(args.calculate)
+                display_range_info(network)
+            except ValueError as e:
+                print(f"Invalid format for -calc: {e}")
 
     elif args.input:
         # Parse file and get results
