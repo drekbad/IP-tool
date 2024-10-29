@@ -19,8 +19,7 @@ def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, 
 
     return total_hosts
 
-def display_range_info(network, provided_addr):
-    # Convert IPv4Address and IPv4Network objects to strings for formatting
+def display_range_info(network, provided_addr, provided_snm=False):
     network_address = str(network.network_address)
     netmask = str(network.netmask)
     broadcast = str(network.broadcast_address)
@@ -29,9 +28,12 @@ def display_range_info(network, provided_addr):
     first_usable = str(hosts[0]) if hosts else "N/A"
     last_usable = str(hosts[-1]) if hosts else "N/A"
     
+    # Display CIDR or Netmask based on what was provided
+    cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else netmask
+
     print(f"Provided Addr:  {provided_addr}")
     print(f"{'Network:':<15}{network_address:>20}")
-    print(f"{'Netmask:':<15}{netmask:>20}")
+    print(f"{'Netmask/CIDR:':<15}{cidr_or_netmask:>20}")
     print(f"{'Broadcast:':<15}{broadcast:>20}")
     print(f"{'First Usable IP:':<15}{first_usable:>20}")
     print(f"{'Last Usable IP:':<15}{last_usable:>20}")
@@ -46,14 +48,14 @@ def parse_snm_or_cidr(ip, netmask=None):
                 netmask = f"255.255.255.{netmask}"  # Convert abbreviated SNM (e.g., "240") to full
             # Convert SNM to CIDR notation
             cidr = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
-            return ipaddress.ip_network(f"{ip}/{cidr}", strict=False)
+            return ipaddress.ip_network(f"{ip}/{cidr}", strict=False), True
         # Assume CIDR if no netmask provided
-        return ipaddress.ip_network(ip, strict=False)
+        return ipaddress.ip_network(ip, strict=False), False
         
     except ValueError:
         raise ValueError("Invalid format: Must provide both IP and valid CIDR or SNM.")
 
-def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway):
+def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False):
     results = {"public": 0, "private": 0}
     total_records = 0
     summaries = defaultdict(int)
@@ -64,9 +66,12 @@ def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway):
             try:
                 parts = line.split()
                 provided_addr = f"{parts[0]} {parts[1]}" if len(parts) > 1 else parts[0]
-                network = parse_snm_or_cidr(parts[0], parts[1] if len(parts) > 1 else None)
-                display_range_info(network, provided_addr)
-                print()  # Newline for readability
+                network, provided_snm = parse_snm_or_cidr(parts[0], parts[1] if len(parts) > 1 else None)
+                
+                # Only display range info if in calc_mode
+                if calc_mode:
+                    display_range_info(network, provided_addr, provided_snm)
+                    print()  # Newline for readability
                 
                 usable_count = calculate_usable_ips(network, disclude_net, disclude_broadcast, disclude_gateway)
                 
@@ -104,7 +109,7 @@ def main():
 
     # Handle `-calc` with `-i` input file option
     if args.calculate is not None and args.input:
-        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway)
+        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=True)
 
         # Display separator and summary totals at the end
         print("\n" + "="*50)
@@ -122,38 +127,21 @@ def main():
         elif len(args.calculate) == 2:
             try:
                 provided_addr = f"{args.calculate[0]} {args.calculate[1]}"
-                network = parse_snm_or_cidr(args.calculate[0], args.calculate[1])
-                display_range_info(network, provided_addr)
+                network, provided_snm = parse_snm_or_cidr(args.calculate[0], args.calculate[1])
+                display_range_info(network, provided_addr, provided_snm)
             except ValueError as e:
                 print(f"Invalid format for -calc with SNM/CIDR: {e}")
         else:
             print("Error: -calc expects an IP with CIDR or SNM.")
     elif args.input:
-        # Parse file and get results
-        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway)
+        # Parse file and get results without calculating each range
+        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False)
 
-        # Display summary results
+        # Display summary results only
         print(f"\nSummary for {total_records} records:")
         print(f"{'Public IPs:':<15}{summaries['public_count']:>20}")
         print(f"{'Private IPs:':<15}{summaries['private_count']:>20}")
         print(f"{'Total Usable IPs:':<15}{results['public'] + results['private']:>20}")
-
-        if args.all_counts:
-            all_configs = [
-                ("All Included", False, False, False),
-                ("Network Excluded", True, False, False),
-                ("Broadcast Excluded", False, True, False),
-                ("Gateway Excluded", False, False, True),
-                ("Network & Broadcast Excluded", True, True, False),
-                ("Network & Gateway Excluded", True, False, True),
-                ("Broadcast & Gateway Excluded", False, True, True),
-                ("All Excluded", True, True, True)
-            ]
-
-            print("\nDetailed Counts:")
-            for config_name, net, bc, gw in all_configs:
-                results, summaries, _ = parse_file(args.input, net, bc, gw)
-                print(f"{config_name}: Public IPs = {summaries['public_count']}, Private IPs = {summaries['private_count']}")
 
 if __name__ == "__main__":
     main()
