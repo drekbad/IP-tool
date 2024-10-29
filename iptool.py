@@ -111,6 +111,7 @@ def main():
 
     if args.reference:
         show_reference_table()
+        print()
         return
 
     if args.calculate is None and args.input is None:
