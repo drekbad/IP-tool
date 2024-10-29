@@ -36,10 +36,16 @@ def display_range_info(network):
 
 def parse_snm_or_cidr(ip, netmask=None):
     try:
-        if not netmask:
-            raise ValueError("Missing CIDR or SNM.")
-        snm_match = netmask if '/' in netmask else f"/{ipaddress.IPv4Address(netmask).max_prefixlen}"
-        return ipaddress.ip_network(f"{ip}{snm_match}", strict=False)
+        # If netmask is None, expect ip in CIDR format
+        if netmask is None:
+            return ipaddress.ip_network(ip, strict=False)
+
+        # Convert short-form SNM (e.g., "240") to full subnet
+        if not '/' in netmask:
+            netmask = f"/{ipaddress.IPv4Address(netmask).max_prefixlen}"
+        
+        return ipaddress.ip_network(f"{ip}{netmask}", strict=False)
+        
     except ValueError:
         raise ValueError("Invalid format: Must provide both IP and valid CIDR or SNM.")
 
