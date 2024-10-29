@@ -20,16 +20,19 @@ def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, 
     return total_hosts
 
 def display_range_info(network, provided_addr):
-    # Display range details for a single CIDR/SNM input, with alignment
+    # Convert IPv4Address and IPv4Network objects to strings for formatting
+    network_address = str(network.network_address)
+    netmask = str(network.netmask)
+    broadcast = str(network.broadcast_address)
     hosts = list(network.hosts())
     usable_count = len(hosts)
-    first_usable = hosts[0] if hosts else None
-    last_usable = hosts[-1] if hosts else None
+    first_usable = str(hosts[0]) if hosts else "N/A"
+    last_usable = str(hosts[-1]) if hosts else "N/A"
     
     print(f"Provided Addr:  {provided_addr}")
-    print(f"{'Network:':<15}{network.network_address:>20}")
-    print(f"{'Netmask:':<15}{network.netmask:>20}")
-    print(f"{'Broadcast:':<15}{network.broadcast_address:>20}")
+    print(f"{'Network:':<15}{network_address:>20}")
+    print(f"{'Netmask:':<15}{netmask:>20}")
+    print(f"{'Broadcast:':<15}{broadcast:>20}")
     print(f"{'First Usable IP:':<15}{first_usable:>20}")
     print(f"{'Last Usable IP:':<15}{last_usable:>20}")
     print(f"{'Total IPs:':<15}{network.num_addresses:>20}")
