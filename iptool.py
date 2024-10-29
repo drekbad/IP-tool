@@ -19,8 +19,8 @@ def underline_text(text):
     return f"\033[4m{text}\033[0m:"
 
 def display_range_info(network, provided_addr, provided_snm=False):
-    # Display CIDR or Netmask based on what was provided
-    cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else str(network.netmask)
+    # Display CIDR or abbreviated Netmask (last octet with period) based on what was provided
+    cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else f".{network.netmask.packed[-1]}"
     
     print(f"{underline_text('Provided Addr'):<15}  {provided_addr:>20}")
     print(f"{'Network:':<15} {str(network.network_address):>20}")
@@ -79,17 +79,17 @@ def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, ca
     return results, summaries, total_records
 
 def show_reference_table():
-    # Reference table for SNM/CIDR
+    # Reference table for SNM/CIDR extended down to /8
     print("\nSubnet Mask / CIDR Reference Table:")
     print(f"{'CIDR':<8}{'Subnet Mask':<15}")
     print("=" * 23)
-    for i in range(32, 15, -1):
+    for i in range(32, 7, -1):
         net = ipaddress.IPv4Network(f"0.0.0.0/{i}")
-        print(f"/{i:<6}{str(net.netmask):<15}")
+        print(f"/{i:<6}.{net.netmask.packed[-1]:<14}")  # Displays only the last octet with period
     print()  # Final line break for clarity
 
 def main():
-    parser = argparse.ArgumentParser(description="Count usable IPs from a file with IP/CIDR or SNM notation.")
+    parser = argparse.ArgumentParser(description="Count usable IPs from a file with IP/CIDR or SNM notation.", add_help=False)
     parser.add_argument("-i", "--input", help="Input file path.")
     parser.add_argument(
         "-disclude", "--disclude",
@@ -100,6 +100,7 @@ def main():
     parser.add_argument("-calc", "--calculate", nargs='*', help="Calculate IP range details for a given IP/CIDR or SNM.")
     parser.add_argument("-all", "--all_counts", action="store_true", help="Display all IP counts with different inclusion configurations.")
     parser.add_argument("-ref", "--reference", action="store_true", help="Display SNM/CIDR reference table.")
+    parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
     args = parser.parse_args()
 
     disclude_net = 'NW' in args.disclude.upper()
@@ -111,7 +112,7 @@ def main():
         return
 
     if args.calculate is None and args.input is None:
-        parser.print_help()
+        print("Usage: iptool.py [-i INPUT] [-calc IP/CIDR or IP SNM] [-disclude NW,GW,BC] [-all] [-ref] [-h]")
         return
 
     if args.calculate is not None and args.input:
@@ -126,6 +127,7 @@ def main():
         return
 
     elif args.calculate:
+        print()  # Ensure a blank line before output for consistency
         if len(args.calculate) == 1 and '/' not in args.calculate[0]:
             print("Error: Please provide both an IP and a CIDR or SNM.")
             return
