@@ -2,7 +2,7 @@ import ipaddress
 import argparse
 from collections import defaultdict
 
-# Single initial line break
+# Initial line break before output
 print()  
 
 def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, disclude_gateway=False):
@@ -22,7 +22,6 @@ def underline_text(text):
     return f"\033[4m{text}\033[0m:"
 
 def display_range_info(network, provided_addr, provided_snm=False):
-    # Display CIDR or full Netmask, but abbreviate SNM in Provided Addr if provided
     cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else str(network.netmask)
     abbreviated_provided_addr = f"{provided_addr.split()[0]} .{network.netmask.packed[-1]}" if provided_snm else provided_addr
     
@@ -152,7 +151,8 @@ def main():
     elif args.input:
         results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False)
 
-        print(f"\nSummary for {total_records} records:")
+        # Display only the summary without extra blank line before
+        print(f"Summary for {total_records} records:")
         print(f"{'Public IPs:':<15} {summaries['public_count']:>20}")
         print(f"{'Private IPs:':<15} {summaries['private_count']:>20}")
         print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}\n")
