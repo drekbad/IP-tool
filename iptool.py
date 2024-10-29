@@ -5,6 +5,10 @@ from collections import defaultdict
 def is_private(ip):
     return ip.is_private
 
+def right_align(value, width=20):
+    """Right-align text within a specified width."""
+    return f"{value:>{width}}"
+
 def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, disclude_gateway=False):
     hosts = list(network.hosts())
     total_hosts = len(hosts)
@@ -20,6 +24,7 @@ def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, 
     return total_hosts
 
 def display_range_info(network, provided_addr, provided_snm=False):
+    # Convert network attributes to strings for alignment
     network_address = str(network.network_address)
     netmask = str(network.netmask)
     broadcast = str(network.broadcast_address)
@@ -31,14 +36,14 @@ def display_range_info(network, provided_addr, provided_snm=False):
     # Display CIDR or Netmask based on what was provided
     cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else netmask
 
-    print(f"Provided Addr:  {provided_addr}")
-    print(f"{'Network:':<15}{network_address:>20}")
-    print(f"{'Netmask/CIDR:':<15}{cidr_or_netmask:>20}")
-    print(f"{'Broadcast:':<15}{broadcast:>20}")
-    print(f"{'First Usable IP:':<15}{first_usable:>20}")
-    print(f"{'Last Usable IP:':<15}{last_usable:>20}")
-    print(f"{'Total IPs:':<15}{network.num_addresses:>20}")
-    print(f"{'Usable IPs:':<15}{usable_count:>20}")
+    print(f"\033[4mProvided Addr:\033[0m {provided_addr}")  # Underline for subtle emphasis
+    print(f"{'Network:':<15}{right_align(network_address)}")
+    print(f"{'Netmask/CIDR:':<15}{right_align(cidr_or_netmask)}")
+    print(f"{'Broadcast:':<15}{right_align(broadcast)}")
+    print(f"{'First Usable IP:':<15}{right_align(first_usable)}")
+    print(f"{'Last Usable IP:':<15}{right_align(last_usable)}")
+    print(f"{'Total IPs:':<15}{right_align(network.num_addresses)}")
+    print(f"{'Usable IPs:':<15}{right_align(usable_count)}")
 
 def parse_snm_or_cidr(ip, netmask=None):
     try:
@@ -114,9 +119,9 @@ def main():
         # Display separator and summary totals at the end
         print("\n" + "="*50)
         print(f"\nSummary for {total_records} records:")
-        print(f"{'Public IPs:':<15}{summaries['public_count']:>20}")
-        print(f"{'Private IPs:':<15}{summaries['private_count']:>20}")
-        print(f"{'Total Usable IPs:':<15}{results['public'] + results['private']:>20}")
+        print(f"{'Public IPs:':<15}{right_align(summaries['public_count'])}")
+        print(f"{'Private IPs:':<15}{right_align(summaries['private_count'])}")
+        print(f"{'Total Usable IPs:':<15}{right_align(results['public'] + results['private'])}")
         return  # Exit after processing file with -calc
 
     # Handle single `-calc` option with provided IP/CIDR or IP SNM
@@ -139,9 +144,9 @@ def main():
 
         # Display summary results only
         print(f"\nSummary for {total_records} records:")
-        print(f"{'Public IPs:':<15}{summaries['public_count']:>20}")
-        print(f"{'Private IPs:':<15}{summaries['private_count']:>20}")
-        print(f"{'Total Usable IPs:':<15}{results['public'] + results['private']:>20}")
+        print(f"{'Public IPs:':<15}{right_align(summaries['public_count'])}")
+        print(f"{'Private IPs:':<15}{right_align(summaries['private_count'])}")
+        print(f"{'Total Usable IPs:':<15}{right_align(results['public'] + results['private'])}")
 
 if __name__ == "__main__":
     main()
