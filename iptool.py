@@ -19,10 +19,11 @@ def underline_text(text):
     return f"\033[4m{text}\033[0m:"
 
 def display_range_info(network, provided_addr, provided_snm=False):
-    # Display CIDR or abbreviated Netmask (last octet with period) based on what was provided
-    cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else f".{network.netmask.packed[-1]}"
+    # Display CIDR or full Netmask, but abbreviate SNM in Provided Addr if provided
+    cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else str(network.netmask)
+    abbreviated_provided_addr = f"{provided_addr.split()[0]} .{network.netmask.packed[-1]}" if provided_snm else provided_addr
     
-    print(f"{underline_text('Provided Addr'):<15}  {provided_addr:>20}")
+    print(f"\n{underline_text('Provided Addr'):<15}  {abbreviated_provided_addr:>20}")
     print(f"{'Network:':<15} {str(network.network_address):>20}")
     print(f"{'Netmask/CIDR:':<15} {cidr_or_netmask:>20}")
     print(f"{'Broadcast:':<15} {str(network.broadcast_address):>20}")
@@ -60,7 +61,6 @@ def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, ca
                 
                 if calc_mode:
                     display_range_info(network, provided_addr, provided_snm)
-                    print()
                 
                 usable_count = calculate_usable_ips(network, disclude_net, disclude_broadcast, disclude_gateway)
                 
@@ -79,14 +79,13 @@ def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, ca
     return results, summaries, total_records
 
 def show_reference_table():
-    # Reference table for SNM/CIDR extended down to /8
     print("\nSubnet Mask / CIDR Reference Table:")
     print(f"{'CIDR':<8}{'Subnet Mask':<15}")
     print("=" * 23)
     for i in range(32, 7, -1):
         net = ipaddress.IPv4Network(f"0.0.0.0/{i}")
-        print(f"/{i:<6}.{net.netmask.packed[-1]:<14}")  # Displays only the last octet with period
-    print()  # Final line break for clarity
+        print(f"/{i:<6}.{net.netmask.packed[-1]:<14}")
+    print()
 
 def main():
     parser = argparse.ArgumentParser(description="Count usable IPs from a file with IP/CIDR or SNM notation.", add_help=False)
@@ -112,10 +111,11 @@ def main():
         return
 
     if args.calculate is None and args.input is None:
-        print("Usage: iptool.py [-i INPUT] [-calc IP/CIDR or IP SNM] [-disclude NW,GW,BC] [-all] [-ref] [-h]")
+        print("\nUsage: iptool.py [-i INPUT] [-calc IP/CIDR or IP SNM] [-disclude NW,GW,BC] [-all] [-ref] [-h]\n")
         return
 
     if args.calculate is not None and args.input:
+        print()
         results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=True)
 
         print("=" * 36)
@@ -127,9 +127,9 @@ def main():
         return
 
     elif args.calculate:
-        print()  # Ensure a blank line before output for consistency
+        print()
         if len(args.calculate) == 1 and '/' not in args.calculate[0]:
-            print("Error: Please provide both an IP and a CIDR or SNM.")
+            print("Error: Please provide both an IP and a CIDR or SNM.\n")
             return
         elif len(args.calculate) == 1:
             try:
@@ -141,20 +141,20 @@ def main():
         elif len(args.calculate) == 2:
             try:
                 network, provided_snm = parse_snm_or_cidr(args.calculate[0], args.calculate[1])
-                display_range_info(network, f"{args.calculate[0]} {args.calculate[1]}", provided_snm)
+                display_range_info(network, f"{args.calculate[0]} .{network.netmask.packed[-1]}", provided_snm)
                 print()
             except ValueError as e:
                 print(f"Invalid format for -calc with SNM/CIDR: {e}")
         else:
-            print("Error: -calc expects an IP with CIDR or SNM.")
+            print("Error: -calc expects an IP with CIDR or SNM.\n")
     elif args.input:
+        print()
         results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False)
 
         print(f"\nSummary for {total_records} records:")
         print(f"{'Public IPs:':<15} {summaries['public_count']:>20}")
         print(f"{'Private IPs:':<15} {summaries['private_count']:>20}")
-        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}")
-        print()
+        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}\n")
 
 if __name__ == "__main__":
     main()
