@@ -43,7 +43,7 @@ def display_range_info(network, provided_addr, provided_snm=False):
     print(f"{'First Usable IP:':<15}{right_align(first_usable)}")
     print(f"{'Last Usable IP:':<15}{right_align(last_usable)}")
     print(f"{'Total IPs:':<15}{right_align(network.num_addresses)}")
-    print(f"{'Usable IPs:':<15}{right_align(usable_count)}")
+    print(f"{'Usable IPs:':<15}{right_align(usable_count)}\n")  # Ensure spacing after each output set
 
 def parse_snm_or_cidr(ip, netmask=None):
     try:
@@ -79,7 +79,6 @@ def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, ca
                 # Only display range info if in calc_mode
                 if calc_mode:
                     display_range_info(network, provided_addr, provided_snm)
-                    print()  # Newline for readability
                 
                 usable_count = calculate_usable_ips(network, disclude_net, disclude_broadcast, disclude_gateway)
                 
