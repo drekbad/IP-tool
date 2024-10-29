@@ -21,27 +21,28 @@ def display_range_info(network, provided_addr, provided_snm=False):
     
     # Output fields with specific alignment adjustments
     print(f"{'Provided Addr:':<15} {provided_addr:>20}")
+    print("---------------")
     print(f"{'Network:':<15} {str(network.network_address):>20}")
     print(f"{'Netmask/CIDR:':<15} {cidr_or_netmask:>20}")
     print(f"{'Broadcast:':<15} {str(network.broadcast_address):>20}")
-    print(f"{'First Usable IP:':<15} {str(list(network.hosts())[0] if list(network.hosts()) else 'N/A'):>19}")
+    print(f"{'First Usable IP:':<15} {str(list(network.hosts())[0] if list(network.hosts()) else 'N/A'):>20}")
     print(f"{'Last Usable IP:':<15} {str(list(network.hosts())[-1] if list(network.hosts()) else 'N/A'):>20}")
     print(f"{'Total IPs:':<15} {network.num_addresses:>20}")
     print(f"{'Usable IPs:':<15} {len(list(network.hosts())):>20}\n")
 
 def parse_snm_or_cidr(ip, netmask=None):
     try:
-        if netmask and '/' not in netmask:
+        if '/' in ip:
+            return ipaddress.ip_network(ip, strict=False), False
+        elif netmask:
             if '.' not in netmask:
-                netmask = f"255.255.255.{netmask}"
-            cidr = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
-            return ipaddress.ip_network(f"{ip}/{cidr}", strict=False), True
-        elif '/' in ip:
-            return ipaddress.ip_network(ip, strict=False), False
+                netmask = f"255.255.255.{netmask.lstrip('.')}"
+            prefix_length = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
+            return ipaddress.ip_network(f"{ip}/{prefix_length}", strict=False), True
         else:
-            return ipaddress.ip_network(ip, strict=False), False
-    except ValueError:
-        raise ValueError("Invalid format: Must provide both IP and valid CIDR or SNM.")
+            raise ValueError("Missing CIDR or SNM.")
+    except ValueError as e:
+        raise ValueError(f"Invalid format for -calc with CIDR or SNM: {e}")
 
 def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False):
     results = {"public": 0, "private": 0}
@@ -99,19 +100,23 @@ def main():
         print(f"\nSummary for {total_records} records:")
         print(f"{'Public IPs:':<15} {summaries['public_count']:>20}")
         print(f"{'Private IPs:':<15} {summaries['private_count']:>20}")
-        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>20}\n")
+        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}\n")
         return
 
     elif args.calculate:
-        if len(args.calculate) == 1:
+        if len(args.calculate) == 1 and '/' not in args.calculate[0]:
             print("Error: Please provide both an IP and a CIDR or SNM.")
             return
+        elif len(args.calculate) == 1:
+            try:
+                network, provided_snm = parse_snm_or_cidr(args.calculate[0])
+                display_range_info(network, args.calculate[0])
+            except ValueError as e:
+                print(f"Invalid format for -calc with CIDR/SNM: {e}")
         elif len(args.calculate) == 2:
             try:
-                provided_addr = f"{args.calculate[0]} {args.calculate[1]}"
                 network, provided_snm = parse_snm_or_cidr(args.calculate[0], args.calculate[1])
-                display_range_info(network, provided_addr, provided_snm)
-                print()  
+                display_range_info(network, f"{args.calculate[0]} {args.calculate[1]}")
             except ValueError as e:
                 print(f"Invalid format for -calc with SNM/CIDR: {e}")
         else:
@@ -122,7 +127,7 @@ def main():
         print(f"\nSummary for {total_records} records:")
         print(f"{'Public IPs:':<15} {summaries['public_count']:>20}")
         print(f"{'Private IPs:':<15} {summaries['private_count']:>20}")
-        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>20}\n")
+        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}\n")
 
 if __name__ == "__main__":
     main()
