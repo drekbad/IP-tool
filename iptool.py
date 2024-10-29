@@ -5,7 +5,7 @@ from collections import defaultdict
 def is_private(ip):
     return ip.is_private
 
-def right_align(value, width=20):
+def right_align(value, width=25):
     """Right-align text within a specified width."""
     return f"{value:>{width}}"
 
@@ -36,7 +36,7 @@ def display_range_info(network, provided_addr, provided_snm=False):
     # Display CIDR or Netmask based on what was provided
     cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else netmask
 
-    print(f"\033[4mProvided Addr\033[0m: {right_align(provided_addr)}")  # Underline only "Provided Addr"
+    print(f"{'Provided Addr:':<15}{right_align(provided_addr)}")  # Right-align the address
     print(f"{'Network:':<15}{right_align(network_address)}")
     print(f"{'Netmask/CIDR:':<15}{right_align(cidr_or_netmask)}")
     print(f"{'Broadcast:':<15}{right_align(broadcast)}")
@@ -54,9 +54,12 @@ def parse_snm_or_cidr(ip, netmask=None):
             # Convert SNM to CIDR notation
             cidr = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
             return ipaddress.ip_network(f"{ip}/{cidr}", strict=False), True
-        # Assume CIDR if no netmask provided
-        return ipaddress.ip_network(ip, strict=False), False
-        
+        elif '/' in ip:
+            # Handle CIDR directly in IP
+            return ipaddress.ip_network(ip, strict=False), False
+        else:
+            # Assume IP/CIDR input if no netmask provided
+            return ipaddress.ip_network(ip, strict=False), False
     except ValueError:
         raise ValueError("Invalid format: Must provide both IP and valid CIDR or SNM.")
 
