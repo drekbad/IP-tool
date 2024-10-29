@@ -2,8 +2,8 @@ import ipaddress
 import argparse
 from collections import defaultdict
 
-# Single initial line break before all output for consistent formatting
-print()
+# Initial line break before output
+print()  
 
 def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, disclude_gateway=False):
     hosts = list(network.hosts())
@@ -48,10 +48,14 @@ def parse_snm_or_cidr(ip, netmask=None):
     except ValueError as e:
         raise ValueError(f"Invalid format for -calc with CIDR or SNM: {e}")
 
-def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False):
+def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False, output_file=None):
     results = {"public": 0, "private": 0}
     total_records = 0
     summaries = defaultdict(int)
+
+    if output_file:
+        with open(output_file, 'w') as file:
+            file.write("Provided Addr,Total IPs\n")  # Header row
 
     with open(file_path, 'r') as file:
         for line in file:
@@ -63,6 +67,12 @@ def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, ca
                 
                 if calc_mode:
                     display_range_info(network, provided_addr, provided_snm)
+                    print()  # Single line break between records
+
+                # Write to output file if specified
+                if output_file:
+                    with open(output_file, 'a') as out_file:
+                        out_file.write(f"{provided_addr},{network.num_addresses}\n")
                 
                 usable_count = calculate_usable_ips(network, disclude_net, disclude_broadcast, disclude_gateway)
                 
@@ -86,21 +96,21 @@ def show_reference_table():
     print("=" * 23)
     for i in range(32, 7, -1):
         net = ipaddress.IPv4Network(f"0.0.0.0/{i}")
-        print(f"/{i:<6}.{net.netmask.packed[-1]:<14}")
-    print()
+        print(f"/{i:<6}{str(net.netmask):<15}")
 
 def main():
     parser = argparse.ArgumentParser(description="Count usable IPs from a file with IP/CIDR or SNM notation.", add_help=False)
     parser.add_argument("-i", "--input", help="Input file path.")
     parser.add_argument(
-        "-d", "--disclude",
+        "-disclude", "--disclude",
         help="Choose which IPs to disclude from count: NW (Network), GW (Gateway), BC (Broadcast). Separate by comma.",
         type=str,
         default=""
     )
-    parser.add_argument("-c", "--calculate", nargs='*', help="Calculate IP range details for a given IP/CIDR or SNM.")
-    parser.add_argument("-a", "--all", action="store_true", help="Display all IP counts with different inclusion configurations.")
+    parser.add_argument("-calc", "--calculate", nargs='*', help="Calculate IP range details for a given IP/CIDR or SNM.")
+    parser.add_argument("-all", "--all_counts", action="store_true", help="Display all IP counts with different inclusion configurations.")
     parser.add_argument("-ref", "--reference", action="store_true", help="Display SNM/CIDR reference table.")
+    parser.add_argument("-o", "--output", nargs='?', const="iptool_out.txt", help="Output usable IPs report to specified file.")
     parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
     args = parser.parse_args()
 
@@ -110,52 +120,54 @@ def main():
 
     if args.reference:
         show_reference_table()
-        print()
         return
 
     if args.calculate is None and args.input is None:
-        print("Usage: iptool.py [-i INPUT] [-calc IP/CIDR or IP SNM] [-disclude NW,GW,BC] [-all] [-ref] [-h]\n")
+        print("Usage: iptool.py [-i INPUT] [-calc IP/CIDR or IP SNM] [-disclude NW,GW,BC] [-all] [-ref] [-o OUTPUT] [-h]")
         return
 
+    # Only set output file if -o is explicitly provided
+    output_file = args.output if args.output else None
+
     if args.calculate is not None and args.input:
-        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=True)
+        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=True, output_file=output_file)
 
         print("=" * 36)
         print(f"\nSummary for {total_records} records:")
         print(f"{'Public IPs:':<15} {summaries['public_count']:>20}")
         print(f"{'Private IPs:':<15} {summaries['private_count']:>20}")
         print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}")
-        print()
+        print()  # Single line break at the end
         return
 
     elif args.calculate:
         if len(args.calculate) == 1 and '/' not in args.calculate[0]:
-            print("Error: Please provide both an IP and a CIDR or SNM.\n")
+            print("Error: Please provide both an IP and a CIDR or SNM.")
             return
         elif len(args.calculate) == 1:
             try:
                 network, provided_snm = parse_snm_or_cidr(args.calculate[0])
                 display_range_info(network, args.calculate[0], provided_snm)
-                print()
+                print()  # Single line break at the end
             except ValueError as e:
                 print(f"Invalid format for -calc with CIDR/SNM: {e}")
         elif len(args.calculate) == 2:
             try:
                 network, provided_snm = parse_snm_or_cidr(args.calculate[0], args.calculate[1])
                 display_range_info(network, f"{args.calculate[0]} .{network.netmask.packed[-1]}", provided_snm)
-                print()
+                print()  # Single line break at the end
             except ValueError as e:
                 print(f"Invalid format for -calc with SNM/CIDR: {e}")
         else:
-            print("Error: -calc expects an IP with CIDR or SNM.\n")
+            print("Error: -calc expects an IP with CIDR or SNM.")
     elif args.input:
-        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False)
+        results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False, output_file=output_file)
 
-        # Display only the summary without extra blank line before
-        print(f"Summary for {total_records} records:")
+        print(f"\nSummary for {total_records} records:")
         print(f"{'Public IPs:':<15} {summaries['public_count']:>20}")
         print(f"{'Private IPs:':<15} {summaries['private_count']:>20}")
-        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}\n")
+        print(f"{'Total Usable IPs:':<15} {results['public'] + results['private']:>18}")
+        print()  # Single line break at the end
 
 if __name__ == "__main__":
     main()
