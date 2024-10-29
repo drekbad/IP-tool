@@ -36,18 +36,21 @@ def display_range_info(network):
 
 def parse_snm_or_cidr(ip, netmask=None):
     try:
-        # If netmask is None, expect ip in CIDR format
-        if netmask is None:
+        # Check if IP includes a CIDR notation
+        if '/' in ip:
             return ipaddress.ip_network(ip, strict=False)
-
-        # Convert short-form SNM (e.g., "240") to full subnet
-        if not '/' in netmask:
-            netmask = f"/{ipaddress.IPv4Address(netmask).max_prefixlen}"
         
-        return ipaddress.ip_network(f"{ip}{netmask}", strict=False)
+        # Handle SNM in various formats
+        if netmask:
+            if '.' not in netmask:
+                netmask = f"255.255.255.{netmask.lstrip('.')}"  # Convert short form (e.g., "240") to full SNM
+            prefix_length = ipaddress.IPv4Address(netmask).max_prefixlen
+            return ipaddress.ip_network(f"{ip}/{prefix_length}", strict=False)
         
-    except ValueError:
-        raise ValueError("Invalid format: Must provide both IP and valid CIDR or SNM.")
+        raise ValueError("Missing CIDR or SNM.")
+        
+    except ValueError as e:
+        raise ValueError(f"Invalid format for -calc with CIDR or SNM: {e}")
 
 def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway):
     results = {"public": 0, "private": 0}
@@ -100,11 +103,11 @@ def main():
             for line in file:
                 line = line.strip()
                 parts = line.split()
-                if len(parts) == 1:
+                if len(parts) < 2 and '/' not in parts[0]:
                     print("Error in file entry: Please provide both an IP and a CIDR or SNM.")
                     continue
                 try:
-                    network = parse_snm_or_cidr(parts[0], parts[1])
+                    network = parse_snm_or_cidr(parts[0], parts[1] if len(parts) > 1 else None)
                     display_range_info(network)
                     print()  # Newline for readability
                 except ValueError as e:
@@ -113,9 +116,15 @@ def main():
 
     # Handle single `-calc` option with provided IP/CIDR or IP SNM
     elif args.calculate:
-        if len(args.calculate) == 1:
+        if len(args.calculate) == 1 and '/' not in args.calculate[0]:
             print("Error: Please provide both an IP and a CIDR or SNM.")
             return
+        elif len(args.calculate) == 1:
+            try:
+                network = parse_snm_or_cidr(args.calculate[0])
+                display_range_info(network)
+            except ValueError as e:
+                print(f"Invalid format for -calc with CIDR/SNM: {e}")
         elif len(args.calculate) == 2:
             try:
                 network = parse_snm_or_cidr(args.calculate[0], args.calculate[1])
