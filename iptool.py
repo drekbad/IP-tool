@@ -16,25 +16,18 @@ def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, 
     return total_hosts
 
 def display_range_info(network, provided_addr, provided_snm=False):
-    # Use fixed-width formatting for precise alignment
-    network_address = str(network.network_address)
-    netmask = str(network.netmask)
-    broadcast = str(network.broadcast_address)
-    hosts = list(network.hosts())
-    usable_count = len(hosts)
-    first_usable = str(hosts[0]) if hosts else "N/A"
-    last_usable = str(hosts[-1]) if hosts else "N/A"
-    cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else netmask
-
-    # Output with fixed-width formatting
+    # Display CIDR or Netmask based on what was provided
+    cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else str(network.netmask)
+    
+    # Output fields with specific alignment adjustments
     print(f"{'Provided Addr:':<15} {provided_addr:>20}")
-    print(f"{'Network:':<15} {network_address:>20}")
+    print(f"{'Network:':<15} {str(network.network_address):>20}")
     print(f"{'Netmask/CIDR:':<15} {cidr_or_netmask:>20}")
-    print(f"{'Broadcast:':<15} {broadcast:>20}")
-    print(f"{'First Usable IP:':<15} {first_usable:>20}")
-    print(f"{'Last Usable IP:':<15} {last_usable:>20}")
+    print(f"{'Broadcast:':<15} {str(network.broadcast_address):>20}")
+    print(f"{'First Usable IP:':<15} {str(list(network.hosts())[0] if list(network.hosts()) else 'N/A'):>19}")
+    print(f"{'Last Usable IP:':<15} {str(list(network.hosts())[-1] if list(network.hosts()) else 'N/A'):>20}")
     print(f"{'Total IPs:':<15} {network.num_addresses:>20}")
-    print(f"{'Usable IPs:':<15} {usable_count:>20}\n")
+    print(f"{'Usable IPs:':<15} {len(list(network.hosts())):>20}\n")
 
 def parse_snm_or_cidr(ip, netmask=None):
     try:
