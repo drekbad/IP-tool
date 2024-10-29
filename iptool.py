@@ -3,7 +3,7 @@ import argparse
 from collections import defaultdict
 
 # Initial line break before output
-print()  
+print()
 
 def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, disclude_gateway=False):
     hosts = list(network.hosts())
@@ -81,12 +81,12 @@ def parse_file(file_path, disclude_net, disclude_broadcast, disclude_gateway, ca
     return results, summaries, total_records
 
 def show_reference_table():
-    print("\nSubnet Mask / CIDR Reference Table:")
+    print("Subnet Mask / CIDR Reference Table:")
     print(f"{'CIDR':<8}{'Subnet Mask':<15}")
     print("=" * 23)
     for i in range(32, 7, -1):
         net = ipaddress.IPv4Network(f"0.0.0.0/{i}")
-        print(f"/{i:<6}.{net.netmask.packed[-1]:<14}")
+        print(f"/{i:<6}{net.netmask:<15}")
     print()
 
 def main():
@@ -109,8 +109,8 @@ def main():
     disclude_gateway = 'GW' in args.disclude.upper()
 
     if args.reference:
+        print()  # Single blank line before
         show_reference_table()
-        print()
         return
 
     if args.calculate is None and args.input is None:
