@@ -2,6 +2,9 @@ import ipaddress
 import argparse
 from collections import defaultdict
 
+# Single initial line break
+print()  
+
 def calculate_usable_ips(network, disclude_net=False, disclude_broadcast=False, disclude_gateway=False):
     hosts = list(network.hosts())
     total_hosts = len(hosts)
@@ -23,7 +26,7 @@ def display_range_info(network, provided_addr, provided_snm=False):
     cidr_or_netmask = f"/{network.prefixlen}" if provided_snm else str(network.netmask)
     abbreviated_provided_addr = f"{provided_addr.split()[0]} .{network.netmask.packed[-1]}" if provided_snm else provided_addr
     
-    print(f"\n{underline_text('Provided Addr'):<15}  {abbreviated_provided_addr:>20}")
+    print(f"{underline_text('Provided Addr'):<15}  {abbreviated_provided_addr:>20}")
     print(f"{'Network:':<15} {str(network.network_address):>20}")
     print(f"{'Netmask/CIDR:':<15} {cidr_or_netmask:>20}")
     print(f"{'Broadcast:':<15} {str(network.broadcast_address):>20}")
@@ -111,11 +114,10 @@ def main():
         return
 
     if args.calculate is None and args.input is None:
-        print("\nUsage: iptool.py [-i INPUT] [-calc IP/CIDR or IP SNM] [-disclude NW,GW,BC] [-all] [-ref] [-h]\n")
+        print("Usage: iptool.py [-i INPUT] [-calc IP/CIDR or IP SNM] [-disclude NW,GW,BC] [-all] [-ref] [-h]\n")
         return
 
     if args.calculate is not None and args.input:
-        print()
         results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=True)
 
         print("=" * 36)
@@ -127,7 +129,6 @@ def main():
         return
 
     elif args.calculate:
-        print()
         if len(args.calculate) == 1 and '/' not in args.calculate[0]:
             print("Error: Please provide both an IP and a CIDR or SNM.\n")
             return
@@ -148,7 +149,6 @@ def main():
         else:
             print("Error: -calc expects an IP with CIDR or SNM.\n")
     elif args.input:
-        print()
         results, summaries, total_records = parse_file(args.input, disclude_net, disclude_broadcast, disclude_gateway, calc_mode=False)
 
         print(f"\nSummary for {total_records} records:")
